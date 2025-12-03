@@ -85,6 +85,7 @@ export default function RestaurantMenu() {
   const restaurantInfoRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const stickySearchRef = useRef<HTMLDivElement>(null)
+  const isScrollingProgrammatically = useRef(false)
 
   // Calculate header height and sticky search height on mount and resize
   useEffect(() => {
@@ -263,11 +264,26 @@ export default function RestaurantMenu() {
   // Add highlights first
   categoryMap.set("highlights", { id: "highlights", label: "Highlights", apiId: undefined })
   
+  // Sort menu categories: items with "deal" in title/name come first
+  const sortedMenuCategories = [...menuCategories].sort((a, b) => {
+    const aTitle = (a.title?.toLowerCase() || a.name?.toLowerCase() || "")
+    const bTitle = (b.title?.toLowerCase() || b.name?.toLowerCase() || "")
+    const aHasDeal = aTitle.includes("deal")
+    const bHasDeal = bTitle.includes("deal")
+    
+    // Items with "deal" come first
+    if (aHasDeal && !bHasDeal) return -1
+    if (!aHasDeal && bHasDeal) return 1
+    
+    // If both have "deal" or both don't, maintain original order
+    return 0
+  })
+  
   // Add menu categories, ensuring uniqueness
-  menuCategories
+  sortedMenuCategories
     .filter((menu) => {
       const title = menu.title?.toLowerCase() || menu.name?.toLowerCase() || ""
-      return title !== "deals" && title !== "highlights"
+      return title !== "highlights"
     })
     .forEach((menu) => {
       const baseId = menu.title?.toLowerCase().replace(/\s+/g, "-") || menu.name?.toLowerCase().replace(/\s+/g, "-") || `menu-${menu.id}`
@@ -286,19 +302,31 @@ export default function RestaurantMenu() {
   const categories = Array.from(categoryMap.values())
 
   const handleCategoryClick = (categoryId: string) => {
+    isScrollingProgrammatically.current = true
     setActiveCategory(categoryId)
-    const section = sectionRefs.current[categoryId]
-    if (section) {
-      // Calculate offset: header height + sticky search/categories height + some padding
-      const headerOffset = headerHeight + stickySearchHeight + 20
-      const elementPosition = section.getBoundingClientRect().top
-      const offsetPosition = elementPosition + window.pageYOffset - headerOffset
+    
+    requestAnimationFrame(() => {
+      const section = sectionRefs.current[categoryId]
+      if (section) {
+        const headerOffset = headerHeight + stickySearchHeight + 20
+        const elementPosition = section.getBoundingClientRect().top
+        const offsetPosition = elementPosition + window.pageYOffset - headerOffset
 
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth",
-      })
-    }
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: "smooth",
+        })
+        
+        setTimeout(() => {
+          isScrollingProgrammatically.current = false
+          requestAnimationFrame(() => {
+            setActiveCategory(categoryId)
+          })
+        }, 1200)
+      } else {
+        isScrollingProgrammatically.current = false
+      }
+    })
   }
 
   // Handle scroll to detect when restaurant info section is scrolled past
@@ -318,24 +346,49 @@ export default function RestaurantMenu() {
   }, [headerHeight])
 
   useEffect(() => {
+    let scrollTimeout: NodeJS.Timeout | null = null
+    
     const handleScroll = () => {
-      const scrollPosition = window.scrollY + 200
+      if (isScrollingProgrammatically.current) {
+        return
+      }
 
-      for (const category of categories) {
-        const section = sectionRefs.current[category.id]
-        if (section) {
-          const { offsetTop, offsetHeight } = section
-          if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
-            setActiveCategory(category.id)
-            break
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout)
+      }
+
+      scrollTimeout = setTimeout(() => {
+        let activeSectionId: string | null = null
+        const scrollPosition = window.scrollY
+        const headerOffset = headerHeight + stickySearchHeight + 20
+        const thresholdTop = scrollPosition + headerOffset
+
+        for (let i = categories.length - 1; i >= 0; i--) {
+          const category = categories[i]
+          const section = sectionRefs.current[category.id]
+          if (section) {
+            const { offsetTop } = section
+            if (thresholdTop >= offsetTop) {
+              activeSectionId = category.id
+              break
+            }
           }
         }
-      }
+
+        if (activeSectionId && activeSectionId !== activeCategory) {
+          setActiveCategory(activeSectionId)
+        }
+      }, 150)
     }
 
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [categories])
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener("scroll", handleScroll)
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout)
+      }
+    }
+  }, [categories, headerHeight, stickySearchHeight, activeCategory])
 
   const addToBasket = (item: any) => {
     setBasketItems((prev) => [...prev, item])

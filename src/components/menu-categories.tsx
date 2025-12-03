@@ -17,15 +17,23 @@ interface MenuCategoriesProps {
 
 export default function MenuCategories({ categories, activeCategory, setActiveCategory, onListClick }: MenuCategoriesProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const activeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
 
-  // Scroll active category into view when it changes
   useEffect(() => {
-    if (activeButtonRef.current && scrollContainerRef.current) {
-      activeButtonRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
+    const activeButton = buttonRefs.current.get(activeCategory)
+    if (activeButton && scrollContainerRef.current) {
+      requestAnimationFrame(() => {
+        const container = scrollContainerRef.current
+        const button = activeButton
+        
+        if (container && button) {
+          const scrollLeft = button.offsetLeft - (container.offsetWidth / 2) + (button.offsetWidth / 2)
+          
+          container.scrollTo({
+            left: scrollLeft,
+            behavior: "smooth",
+          })
+        }
       })
     }
   }, [activeCategory])
@@ -61,14 +69,16 @@ export default function MenuCategories({ categories, activeCategory, setActiveCa
           <button
             key={category.id}
             ref={(el) => {
-              if (activeCategory === category.id) {
-                activeButtonRef.current = el
+              if (el) {
+                buttonRefs.current.set(category.id, el)
+              } else {
+                buttonRefs.current.delete(category.id)
               }
             }}
             onClick={() => setActiveCategory(category.id)}
-            className={`px-3 md:px-4 py-2 md:py-1.5 rounded-full text-xs md:text-sm font-semibold whitespace-nowrap transition  ${
+            className={`px-3 md:px-4 py-2 md:py-1.5 rounded-full text-xs md:text-sm font-semibold whitespace-nowrap transition-all duration-300 ease-in-out ${
               activeCategory === category.id 
-                ? "bg-orange-500 text-white shadow-lg dark:bg-orange-600" 
+                ? "bg-orange-500 text-white shadow-lg dark:bg-orange-600 scale-105" 
                 : "text-foreground hover:bg-accent hover:text-orange-500"
             }`}
             style={{ minHeight: "unset", height: "32px", maxHeight: "36px" }}

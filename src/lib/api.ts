@@ -107,6 +107,7 @@ export interface PlaceOrderData {
   payment_method: 'cash' | 'online';
   area_code: string;
   houseadress: string;
+  apartment?: string;
   longitude: string;
   latitude: string;
   date: string;
@@ -170,8 +171,8 @@ function validateOrderData(orderData: PlaceOrderData): { valid: boolean; error?:
   if (!orderData.order_items || orderData.order_items.length === 0) {
     return { valid: false, error: 'Order must contain at least one item' };
   }
-  if (orderData.delivery_type === 'delivery' && !orderData.houseadress && !orderData.latitude) {
-    return { valid: false, error: 'Delivery address or coordinates required' };
+  if (orderData.delivery_type === 'delivery' && !orderData.houseadress) {
+    return { valid: false, error: 'Delivery address is required' };
   }
   return { valid: true };
 }

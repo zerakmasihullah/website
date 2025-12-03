@@ -6,17 +6,6 @@ import { Calendar, Clock, CreditCard, MapPin, Phone, ShoppingBag, User, ChevronR
 import { placeOrder, getCurrentUser, updateProfile, createCheckoutSession, validateUserSession, isAuthenticated, type PlaceOrderData } from "@/lib/api"
 import Header from "@/components/header"
 import MyAccountModal from "@/components/my-account-modal"
-import dynamic from "next/dynamic"
-
-// Dynamically import LocationPicker to avoid SSR issues with Leaflet
-const LocationPicker = dynamic(() => import("@/components/location-picker"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-[300px] bg-[#1a1a1a] rounded-xl border border-gray-700 flex items-center justify-center">
-      <div className="text-gray-400 text-sm">Loading map...</div>
-    </div>
-  ),
-})
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -41,10 +30,6 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState("")
   const [isEditingPhone, setIsEditingPhone] = useState(false)
   const [isEditingAreaCode, setIsEditingAreaCode] = useState(false)
-  const [isEditingAddress, setIsEditingAddress] = useState(false)
-  const [checkoutLatitude, setCheckoutLatitude] = useState("")
-  const [checkoutLongitude, setCheckoutLongitude] = useState("")
-  const [showMap, setShowMap] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [showItems, setShowItems] = useState(false)
@@ -127,26 +112,6 @@ export default function CheckoutPage() {
     setTotal(subtotal + delivery + serviceFee)
   }, [deliveryType, subtotal, serviceFee])
 
-  // Reverse geocode coordinates to address
-  const reverseGeocode = async (lat: string, lng: string): Promise<string> => {
-    try {
-      // Use OpenStreetMap Nominatim API (free, no API key needed)
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'OscarWebsite/1.0' // Required by Nominatim
-          }
-        }
-      )
-      const data = await response.json()
-      if (data && data.display_name) {
-        return data.display_name
-      }
-    } catch (error) {
-    }
-    return ""
-  }
 
   // Initialize form data
   useEffect(() => {
@@ -164,13 +129,7 @@ export default function CheckoutPage() {
       setPhoneNumber(user.phone_number || "")
       setAreaCode((user as any).area_code || "")
       
-      // Initialize coordinates from user profile
-      const lat = (user as any).latitude || ""
-      const lng = (user as any).longitude || ""
-      setCheckoutLatitude(lat)
-      setCheckoutLongitude(lng)
-      
-      // Initialize address: Priority 1) Profile address, 2) localStorage, 3) Reverse geocode from coordinates
+      // Initialize address: Priority 1) Profile address, 2) localStorage
       const profileAddress = (user as any).address || ""
       const savedAddress = localStorage.getItem('user_address') || ""
       
@@ -181,19 +140,6 @@ export default function CheckoutPage() {
       } else if (savedAddress) {
         // Use saved address from previous checkout
         setAddress(savedAddress)
-      } else if (lat && lng && lat !== "0" && lng !== "0" && parseFloat(lat) !== 0 && parseFloat(lng) !== 0) {
-        // Reverse geocode from profile coordinates
-        reverseGeocode(lat, lng).then((geocodedAddress) => {
-          if (geocodedAddress) {
-            setAddress(geocodedAddress)
-            localStorage.setItem('user_address', geocodedAddress)
-          }
-        })
-      }
-      
-      // Show map if coordinates exist
-      if (lat && lng && lat !== "0" && lng !== "0") {
-        setShowMap(true)
       }
     }
   }, [user])
@@ -321,47 +267,6 @@ export default function CheckoutPage() {
     }
   }
 
-  const handleSaveAddress = () => {
-    if (address && address.trim()) {
-      // Save address to localStorage for this checkout session only (not to user profile, as it's per-order)
-      localStorage.setItem('user_address', address.trim())
-      setIsEditingAddress(false)
-      setError("") // Clear any previous errors
-      // Note: We intentionally do NOT update the user profile here
-      // The checkout address is only for this specific order
-    } else if (checkoutLatitude && checkoutLongitude && checkoutLatitude !== "0" && checkoutLongitude !== "0") {
-      // If no address but coordinates exist, use coordinates
-      setAddress(`Location: ${checkoutLatitude}, ${checkoutLongitude}`)
-      localStorage.setItem('user_address', `Location: ${checkoutLatitude}, ${checkoutLongitude}`)
-      setIsEditingAddress(false)
-      setError("")
-    } else {
-      setError("Please enter a valid address or select location on map")
-      setShowMap(true)
-    }
-  }
-
-  const handleLocationChange = (lat: string, lng: string) => {
-    setCheckoutLatitude(lat)
-    setCheckoutLongitude(lng)
-    setShowMap(true)
-    setError("") // Clear any errors
-    // Try to reverse geocode the new location
-    reverseGeocode(lat, lng).then((geocodedAddress) => {
-      if (geocodedAddress) {
-        setAddress(geocodedAddress)
-        localStorage.setItem('user_address', geocodedAddress)
-      } else {
-        // If reverse geocoding fails, set address with coordinates
-        setAddress(`Location: ${lat}, ${lng}`)
-        localStorage.setItem('user_address', `Location: ${lat}, ${lng}`)
-      }
-    }).catch(() => {
-      // Fallback if reverse geocoding fails
-      setAddress(`Location: ${lat}, ${lng}`)
-      localStorage.setItem('user_address', `Location: ${lat}, ${lng}`)
-    })
-  }
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -397,25 +302,10 @@ export default function CheckoutPage() {
       return
     }
 
-    // For delivery, address is required (but coordinates can be used as fallback in backend)
+    // For delivery, address is required
     if (deliveryType === "delivery" && (!address || !address.trim())) {
-      // Check if user has coordinates - if yes, we can proceed but still show warning
-      const hasCoordinates = (checkoutLatitude && checkoutLongitude && 
-                              checkoutLatitude !== "0" && checkoutLongitude !== "0") ||
-                             (user && (user as any).latitude && (user as any).longitude && 
-                              (user as any).latitude !== "0" && (user as any).longitude !== "0")
-      
-      if (!hasCoordinates) {
-        setError("Delivery address is required. Please enter your delivery address or select location on map.")
-        setIsEditingAddress(true) // Auto-open address editor if missing
-        setShowMap(true)
-        return
-      } else {
-        // User has coordinates but no address - use coordinates as address
-        const lat = checkoutLatitude || (user as any).latitude
-        const lng = checkoutLongitude || (user as any).longitude
-        setAddress(`Location: ${lat}, ${lng}`)
-      }
+      setError("Delivery address is required. Please enter your delivery address.")
+      return
     }
 
     if (!paymentMethod) {
@@ -479,26 +369,12 @@ export default function CheckoutPage() {
         return
       }
 
-      // For delivery, require address OR coordinates
+      // For delivery, require address
       if (deliveryType === "delivery") {
-        const hasAddress = address && address.trim()
-        const hasCoordinates = (checkoutLatitude && checkoutLongitude && 
-                                checkoutLatitude !== "0" && checkoutLongitude !== "0") ||
-                               (user && (user as any).latitude && (user as any).longitude && 
-                                (user as any).latitude !== "0" && (user as any).longitude !== "0")
-        
-        if (!hasAddress && !hasCoordinates) {
-          setError("Delivery address is required. Please enter your delivery address or select location on map.")
-          setIsEditingAddress(true)
-          setShowMap(true)
+        if (!address || !address.trim()) {
+          setError("Delivery address is required. Please enter your delivery address.")
           setIsSubmitting(false)
           return
-        }
-        // If we have coordinates but no address, use coordinates as address
-        if (!hasAddress && hasCoordinates) {
-          const lat = checkoutLatitude || (user as any).latitude
-          const lng = checkoutLongitude || (user as any).longitude
-          setAddress(`Location: ${lat}, ${lng}`)
         }
       }
 
@@ -515,17 +391,9 @@ export default function CheckoutPage() {
         phone_number: phoneNumber.trim(),
         payment_method: paymentMethod === "cash" ? "cash" : "online",
         area_code: areaCode.trim(),
-        houseadress: deliveryType === "delivery" 
-          ? (address && address.trim() 
-              ? address.trim() 
-              : (checkoutLatitude && checkoutLongitude && checkoutLatitude !== "0" && checkoutLongitude !== "0"
-                  ? `Location: ${checkoutLatitude}, ${checkoutLongitude}` 
-                  : ((user as any).latitude && (user as any).longitude 
-                      ? `Location: ${(user as any).latitude}, ${(user as any).longitude}` 
-                      : user.name || "")))
-          : "",
-        longitude: String(checkoutLongitude || (user as any).longitude || "0"),
-        latitude: String(checkoutLatitude || (user as any).latitude || "0"),
+        houseadress: deliveryType === "delivery" ? address.trim() : "",
+        longitude: "0",
+        latitude: "0",
         date: selectedDate,
         time: selectedTime,
         delivery_type: deliveryType,
@@ -658,10 +526,6 @@ export default function CheckoutPage() {
                   onClick={() => {
                     setDeliveryType("delivery")
                     localStorage.setItem('deliveryType', 'delivery')
-                    // If switching to delivery and no address, open address editor
-                    if (!address || !address.trim()) {
-                      setIsEditingAddress(true)
-                    }
                   }}
                   className={`flex-1 flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-2 rounded-full text-xs sm:text-sm transition touch-manipulation ${
                     deliveryType === "delivery" ? "bg-accent text-foreground" : "text-muted-foreground"
@@ -675,9 +539,6 @@ export default function CheckoutPage() {
                   onClick={() => {
                     setDeliveryType("collection")
                     localStorage.setItem('deliveryType', 'collection')
-                    // Close address editor and hide map when switching to collection
-                    setIsEditingAddress(false)
-                    setShowMap(false)
                   }}
                   className={`flex-1 flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-2 rounded-full text-xs sm:text-sm transition touch-manipulation ${
                     deliveryType === "collection" ? "bg-accent text-foreground" : "text-muted-foreground"
@@ -802,105 +663,26 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Address */}
+              {/* House Address */}
               {deliveryType === "delivery" && (
-                <div className="bg-muted/50 rounded-lg p-3 sm:p-3.5 mb-2 space-y-2 border border-border">
+                <div className="bg-muted/50 rounded-lg p-3 sm:p-3.5 mb-2 border border-border">
                   <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 flex-shrink-0" />
-                      <span className="text-foreground font-medium text-sm sm:text-base">Address</span>
-                      {(() => {
-                        const hasAddress = address && address.trim()
-                        const hasCoordinates = checkoutLatitude && checkoutLongitude && 
-                                              checkoutLatitude !== "0" && checkoutLongitude !== "0"
-                        // Only show "Required" if no address AND no coordinates
-                        if (!hasAddress && !hasCoordinates) {
-                          return <span className="bg-yellow-500 text-black text-xs px-1.5 py-0.5 rounded font-medium">Required</span>
-                        }
-                        return null
-                      })()}
+                      <span className="text-foreground font-medium text-sm sm:text-base">House Address</span>
+                      {!address && (
+                        <span className="bg-yellow-500 text-black text-xs px-1.5 py-0.5 rounded font-medium">Required</span>
+                      )}
                     </div>
-                    {!isEditingAddress && (
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingAddress(true)}
-                        className="text-orange-500 hover:text-orange-400 touch-manipulation p-1 -mr-1 flex-shrink-0"
-                      >
-                        <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
-                    )}
                   </div>
-                  
-                  {/* Map Display */}
-                  {showMap && deliveryType === "delivery" && (
-                    <div className="mb-3">
-                      <div className="h-[250px] sm:h-[300px] md:h-[350px]">
-                        <LocationPicker
-                          latitude={checkoutLatitude || (user as any)?.latitude || ""}
-                          longitude={checkoutLongitude || (user as any)?.longitude || ""}
-                          onLocationChange={handleLocationChange}
-                        />
-                      </div>
-                      
-                      {/* Buttons under the map */}
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mt-3">
-                        <button
-                          type="button"
-                          onClick={() => setShowMap(false)}
-                          className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 bg-muted text-foreground rounded-lg hover:bg-accent transition text-sm font-medium border border-border touch-manipulation"
-                        >
-                          Hide Map
-                        </button>
-                        {isEditingAddress && (
-                          <button
-                            type="button"
-                            onClick={handleSaveAddress}
-                            className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition text-sm font-medium touch-manipulation"
-                          >
-                            Save Address
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Show Map button when map is hidden */}
-                  {!showMap && (
-                    <button
-                      type="button"
-                      onClick={() => setShowMap(true)}
-                      className="w-full px-4 py-2.5 sm:py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition text-sm sm:text-base font-medium mb-2 dark:bg-orange-600 touch-manipulation"
-                    >
-                      Show Map to Select Location
-                    </button>
-                  )}
-                  
-                  {isEditingAddress ? (
-                    <textarea
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Enter delivery address (optional if you have location saved)"
-                      rows={3}
-                      className="w-full mt-1.5 px-3 py-2.5 sm:py-2 bg-background text-foreground rounded-lg border border-border focus:outline-none focus:border-orange-500 resize-none text-sm sm:text-base"
-                    />
-                  ) : (
-                    <p className="text-muted-foreground text-xs sm:text-sm break-words">
-                      {address || (checkoutLatitude && checkoutLongitude && checkoutLatitude !== "0" && checkoutLongitude !== "0"
-                        ? "Click to edit address (location saved)" 
-                        : "Click to add address")}
-                    </p>
-                  )}
-                  
-                  {/* Save button for address textarea */}
-                  {isEditingAddress && !showMap && (
-                    <button
-                      type="button"
-                      onClick={handleSaveAddress}
-                      className="w-full px-4 py-2.5 sm:py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition text-sm sm:text-base font-medium mt-2 touch-manipulation"
-                    >
-                      Save Address
-                    </button>
-                  )}
+                  <textarea
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Enter your house address (street, building number, apartment/unit, etc.)"
+                    rows={3}
+                    className="w-full mt-1.5 px-3 py-2.5 sm:py-2 bg-background text-foreground rounded-lg border border-border focus:outline-none focus:border-orange-500 resize-none text-sm sm:text-base"
+                    required={deliveryType === "delivery"}
+                  />
                 </div>
               )}
 
