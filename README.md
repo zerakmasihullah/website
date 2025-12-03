@@ -22,6 +22,7 @@ A modern, responsive restaurant ordering website built with Next.js, React, and 
 
 ### 1. Install Dependencies
 
+
 ```bash
 npm install
 # or
