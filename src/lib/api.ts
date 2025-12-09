@@ -1025,6 +1025,74 @@ export async function getOrderBySession(sessionId: string): Promise<any> {
   }
 }
 
+// ==================== Fees ====================
+
+export interface FeesData {
+  id: number;
+  delivery_price: string;
+  free_delivery_limit: string;
+  service_fees: string;
+  discount_for_all: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Fetch fees from API
+export async function getFees(): Promise<FeesData | null> {
+  try {
+    const data = await apiRequest<ApiResponse<FeesData>>('/fees');
+    
+    if (data.status && data.data) {
+      return data.data;
+    }
+    return null;
+  } catch (error) {
+    // Return default fees if API fails
+    return {
+      id: 1,
+      delivery_price: '1.00',
+      free_delivery_limit: '12.00',
+      service_fees: '0.99',
+      discount_for_all: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+}
+
+// Calculate fees based on subtotal and delivery type
+export function calculateFees(
+  fees: FeesData | null,
+  subtotal: number,
+  deliveryType: 'delivery' | 'collection'
+): { deliveryFee: number; serviceFee: number; total: number } {
+  const defaultFees: FeesData = {
+    id: 1,
+    delivery_price: '1.00',
+    free_delivery_limit: '12.00',
+    service_fees: '0.99',
+    discount_for_all: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  
+  const feesData = fees || defaultFees;
+  const deliveryPrice = parseFloat(feesData.delivery_price) || 1.0;
+  const freeDeliveryLimit = parseFloat(feesData.free_delivery_limit) || 12.0;
+  const serviceFee = parseFloat(feesData.service_fees) || 0.99;
+  
+  // Calculate delivery fee
+  let deliveryFee = 0;
+  if (deliveryType === 'delivery') {
+    // Free delivery if subtotal >= free_delivery_limit
+    deliveryFee = subtotal >= freeDeliveryLimit ? 0 : deliveryPrice;
+  }
+  
+  const total = subtotal + deliveryFee + serviceFee;
+  
+  return { deliveryFee, serviceFee, total };
+}
+
 // ==================== Drinks/Addons ====================
 
 // Fetch drinks/addons from API

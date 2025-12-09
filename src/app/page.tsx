@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { Search, Star, Users, Info, X, Clock, MapPin, Receipt, Home, Building2, ShoppingBag, Bike } from "lucide-react"
 import Header from "@/components/header"
 import HeroSection from "@/components/hero-section"
@@ -60,6 +61,7 @@ const stripHtml = (html: string | null | undefined): string => {
 }
 
 export default function RestaurantMenu() {
+  const pathname = usePathname()
   const [activeCategory, setActiveCategory] = useState("highlights")
   const [basketItems, setBasketItems] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -115,20 +117,21 @@ export default function RestaurantMenu() {
     }
   }, [])
 
-  // Load basket items from localStorage on mount
+  // Load basket items from localStorage on mount and when returning to page
   useEffect(() => {
     const loadBasket = () => {
       try {
         const savedBasket = localStorage.getItem('basketItems')
         if (savedBasket) {
           const parsed = JSON.parse(savedBasket)
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Only set if we have items - don't overwrite with empty array
             setBasketItems(parsed)
           }
-        } else {
-          setBasketItems([])
         }
+        // Don't set empty array if no basket - preserve existing state
       } catch (error) {
+        // Silently handle errors - don't clear basket on parse errors
       }
     }
 
@@ -137,20 +140,98 @@ export default function RestaurantMenu() {
     // Listen for custom event when basket is cleared
     const handleBasketCleared = () => {
       setBasketItems([])
+      // Explicitly remove from localStorage when cleared
+      try {
+        localStorage.removeItem('basketItems')
+      } catch (error) {
+        // Silently handle errors
+      }
+    }
+
+    // Reload basket when page becomes visible (e.g., navigating back from checkout)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadBasket()
+      }
+    }
+
+    // Reload basket on focus (e.g., tab switching back or navigating back)
+    const handleFocus = () => {
+      loadBasket()
+    }
+
+    // Listen for storage events (cross-tab and same-tab changes)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'basketItems') {
+        loadBasket()
+      }
+    }
+
+    // Listen for pageshow event (fires when page is loaded from cache, e.g., back/forward navigation)
+    const handlePageShow = (e: PageTransitionEvent) => {
+      // Reload basket when page is shown (especially from cache)
+      if (e.persisted || document.visibilityState === 'visible') {
+        loadBasket()
+      }
+    }
+
+    // Listen for popstate (browser back/forward)
+    const handlePopState = () => {
+      // Small delay to ensure localStorage is accessible
+      setTimeout(loadBasket, 50)
     }
 
     window.addEventListener('basketCleared', handleBasketCleared)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('pageshow', handlePageShow)
+    window.addEventListener('popstate', handlePopState)
 
     return () => {
       window.removeEventListener('basketCleared', handleBasketCleared)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('pageshow', handlePageShow)
+      window.removeEventListener('popstate', handlePopState)
     }
   }, [])
 
+  // Reload basket when pathname changes (e.g., navigating back from checkout)
+  useEffect(() => {
+    if (pathname === '/') {
+      // Small delay to ensure localStorage is accessible after navigation
+      const timer = setTimeout(() => {
+        try {
+          const savedBasket = localStorage.getItem('basketItems')
+          if (savedBasket) {
+            const parsed = JSON.parse(savedBasket)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              // Force reload basket from localStorage when returning to home page
+              setBasketItems(parsed)
+            }
+          }
+        } catch (error) {
+          // Silently handle errors
+        }
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [pathname])
+
   // Save basket items to localStorage whenever they change
+  // CRITICAL: Only save if we have items - never save empty array to preserve basket
   useEffect(() => {
     try {
-      localStorage.setItem('basketItems', JSON.stringify(basketItems))
+      if (basketItems.length > 0) {
+        localStorage.setItem('basketItems', JSON.stringify(basketItems))
+      }
+      // IMPORTANT: Don't save empty array - this preserves the basket when component unmounts
+      // The basket will only be cleared when basketCleared event is fired (handled separately)
     } catch (error) {
+      // Silently handle errors
     }
   }, [basketItems])
 

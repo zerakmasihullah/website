@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { X, Calendar, Clock, CreditCard, DollarSign, MapPin, Phone, FileText, ShoppingBag, Tag, User, ChevronRight, Info } from "lucide-react"
-import { placeOrder, getCurrentUser, updateProfile, createCheckoutSession, type PlaceOrderData } from "@/lib/api"
+import { placeOrder, getCurrentUser, updateProfile, createCheckoutSession, getFees, calculateFees, type PlaceOrderData, type FeesData } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 interface BasketItem {
@@ -44,15 +44,16 @@ export default function CheckoutModal({
   isOpen,
   onClose,
   items,
-  subtotal,
-  deliveryFee,
-  serviceFee,
-  total,
+  subtotal: propSubtotal,
+  deliveryFee: propDeliveryFee,
+  serviceFee: propServiceFee,
+  total: propTotal,
   deliveryType,
   onOrderSuccess,
 }: CheckoutModalProps) {
   const router = useRouter()
   const user = getCurrentUser()
+  const [feesData, setFeesData] = useState<FeesData | null>(null)
   
   const [selectedDate, setSelectedDate] = useState("")
   const [selectedTime, setSelectedTime] = useState("")
@@ -70,6 +71,22 @@ export default function CheckoutModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [showItems, setShowItems] = useState(false)
+
+  // Fetch fees data on mount
+  useEffect(() => {
+    const fetchFees = async () => {
+      try {
+        const fees = await getFees()
+        setFeesData(fees)
+      } catch (error) {
+        console.error('Failed to fetch fees:', error)
+      }
+    }
+    fetchFees()
+  }, [])
+
+  // Calculate fees dynamically
+  const { deliveryFee, serviceFee, total } = calculateFees(feesData, propSubtotal, deliveryType)
 
   // Initialize form data
   useEffect(() => {
@@ -261,7 +278,7 @@ export default function CheckoutModal({
         const sessionData = await createCheckoutSession({
             order_data: orderData,
             items: items,
-            subtotal,
+            subtotal: propSubtotal,
             deliveryFee,
             serviceFee,
             total,
@@ -663,14 +680,19 @@ export default function CheckoutModal({
             <div className="space-y-2 mb-4 pb-4 border-b border-border">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span className="text-foreground">€ {subtotal.toFixed(2)}</span>
+                <span className="text-foreground">€ {propSubtotal.toFixed(2)}</span>
               </div>
-              {deliveryFee > 0 && (
+              {deliveryType === "delivery" && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground flex items-center gap-1">
                     Delivery fee <Info className="w-3 h-3" />
+                    {deliveryFee === 0 && feesData && propSubtotal >= parseFloat(feesData.free_delivery_limit) && (
+                      <span className="text-green-500 text-xs">(Free!)</span>
+                    )}
                   </span>
-                  <span className="text-foreground">€ {deliveryFee.toFixed(2)}</span>
+                  <span className="text-foreground">
+                    {deliveryFee === 0 ? "Free" : `€ ${deliveryFee.toFixed(2)}`}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between text-sm">

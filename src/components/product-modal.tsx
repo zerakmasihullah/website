@@ -442,7 +442,7 @@ export default function ProductModal({ product, onClose, onAddToBasket }: Produc
         onClick={onClose}
       >
         <div
-          className="bg-card rounded-t-3xl md:rounded-xl max-w-lg w-full h-[95vh] md:h-auto md:max-h-[90vh] flex flex-col shadow-2xl border-t md:border border-border relative transition-colors duration-300"
+          className="bg-card rounded-t-3xl md:rounded-xl max-w-lg w-full h-[95vh] md:h-auto md:max-h-[90vh] flex flex-col shadow-2xl border-t md:border border-border relative transition-colors p-4 duration-300"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close Button - Always visible */}

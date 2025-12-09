@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Calendar, Clock, CreditCard, MapPin, Phone, ShoppingBag, User, ChevronRight, Info, ArrowLeft, Bike } from "lucide-react"
-import { placeOrder, getCurrentUser, updateProfile, createCheckoutSession, validateUserSession, isAuthenticated, type PlaceOrderData } from "@/lib/api"
+import { placeOrder, getCurrentUser, updateProfile, createCheckoutSession, validateUserSession, isAuthenticated, getFees, calculateFees, type PlaceOrderData, type FeesData } from "@/lib/api"
 import Header from "@/components/header"
 import MyAccountModal from "@/components/my-account-modal"
 
@@ -18,6 +18,7 @@ export default function CheckoutPage() {
   const [deliveryFee, setDeliveryFee] = useState(0)
   const [serviceFee, setServiceFee] = useState(0.99)
   const [total, setTotal] = useState(0)
+  const [feesData, setFeesData] = useState<FeesData | null>(null)
   // Initialize with default value to avoid hydration mismatch
   const [deliveryType, setDeliveryType] = useState<"delivery" | "collection">("delivery")
   
@@ -35,6 +36,19 @@ export default function CheckoutPage() {
   const [showItems, setShowItems] = useState(false)
   const [showOrderNotes, setShowOrderNotes] = useState(false)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
+
+  // Fetch fees data on mount
+  useEffect(() => {
+    const fetchFees = async () => {
+      try {
+        const fees = await getFees()
+        setFeesData(fees)
+      } catch (error) {
+        console.error('Failed to fetch fees:', error)
+      }
+    }
+    fetchFees()
+  }, [])
 
   // Check authentication status on mount
   useEffect(() => {
@@ -87,10 +101,6 @@ export default function CheckoutPage() {
             setItems(parsed)
             const sub = parsed.reduce((sum: number, item: any) => sum + item.totalPrice, 0)
             setSubtotal(sub)
-            const savedDeliveryType = localStorage.getItem('deliveryType')
-            const delivery = (savedDeliveryType === "collection" ? 0 : 3.0)
-            setDeliveryFee(delivery)
-            setTotal(sub + delivery + serviceFee)
           } else {
             // Basket is empty, redirect to home
             router.push('/')
@@ -105,12 +115,13 @@ export default function CheckoutPage() {
     }
   }, [router])
 
-  // Update totals when delivery type changes
+  // Update totals when delivery type, subtotal, or fees data changes
   useEffect(() => {
-    const delivery = deliveryType === "delivery" ? 3.0 : 0
-    setDeliveryFee(delivery)
-    setTotal(subtotal + delivery + serviceFee)
-  }, [deliveryType, subtotal, serviceFee])
+    const calculated = calculateFees(feesData, subtotal, deliveryType)
+    setDeliveryFee(calculated.deliveryFee)
+    setServiceFee(calculated.serviceFee)
+    setTotal(calculated.total)
+  }, [deliveryType, subtotal, feesData])
 
 
   // Initialize form data
@@ -829,12 +840,17 @@ export default function CheckoutPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="text-foreground">€ {subtotal.toFixed(2)}</span>
               </div>
-              {deliveryFee > 0 && (
+              {deliveryType === "delivery" && (
                 <div className="flex justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground flex items-center gap-1">
                     Delivery fee <Info className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    {deliveryFee === 0 && feesData && subtotal >= parseFloat(feesData.free_delivery_limit) && (
+                      <span className="text-green-500 text-xs">(Free!)</span>
+                    )}
                   </span>
-                  <span className="text-foreground">€ {deliveryFee.toFixed(2)}</span>
+                  <span className="text-foreground">
+                    {deliveryFee === 0 ? "Free" : `€ ${deliveryFee.toFixed(2)}`}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between text-xs sm:text-sm">

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { X, ShoppingCart, Trash2, Minus, Plus, Bike, ShoppingBag, Info } from "lucide-react"
+import { getFees, calculateFees, type FeesData } from "@/lib/api"
 
 interface SelectedOption {
   groupTitle: string
@@ -38,6 +39,20 @@ export default function MobileBasket({ items, onUpdateQuantity, onRemoveItem, on
   const [isOpen, setIsOpen] = useState(false)
   // Initialize with default value to avoid hydration mismatch
   const [deliveryMode, setDeliveryMode] = useState<"delivery" | "collection">("delivery")
+  const [feesData, setFeesData] = useState<FeesData | null>(null)
+
+  // Fetch fees data on mount
+  useEffect(() => {
+    const fetchFees = async () => {
+      try {
+        const fees = await getFees()
+        setFeesData(fees)
+      } catch (error) {
+        console.error('Failed to fetch fees:', error)
+      }
+    }
+    fetchFees()
+  }, [])
 
   // Sync with localStorage changes (e.g., when coming back from checkout)
   useEffect(() => {
@@ -96,10 +111,13 @@ export default function MobileBasket({ items, onUpdateQuantity, onRemoveItem, on
   }, [])
 
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0)
-  const deliveryFee = deliveryMode === "delivery" ? 3.0 : 0
-  const serviceFee = 0.99
-  const total = subtotal + deliveryFee + serviceFee
+  const { deliveryFee, serviceFee, total } = calculateFees(feesData, subtotal, deliveryMode)
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0)
+  
+  // Get free delivery limit with fallback
+  const freeDeliveryLimit = feesData ? parseFloat(feesData.free_delivery_limit) : 12.0
+  const qualifiesForFreeDelivery = subtotal >= freeDeliveryLimit
+  const amountNeeded = Math.max(0, freeDeliveryLimit - subtotal)
 
   if (items.length === 0) return null
 
@@ -147,7 +165,7 @@ export default function MobileBasket({ items, onUpdateQuantity, onRemoveItem, on
 
             {/* Delivery/Collection Toggle */}
             <div className="p-4 border-b border-border flex-shrink-0">
-              <div className="flex bg-card rounded-full p-1">
+              <div className="flex bg-card rounded-full p-1 mb-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -181,6 +199,24 @@ export default function MobileBasket({ items, onUpdateQuantity, onRemoveItem, on
                   <span className="font-medium">Collection</span>
                 </button>
               </div>
+
+              {/* Free Delivery Message */}
+              {deliveryMode === "delivery" && (
+                <div className="px-3 py-2 rounded-lg text-xs border border-border bg-card min-h-[3.5rem] flex items-center">
+                  {qualifiesForFreeDelivery ? (
+                    <p className="text-green-500 font-medium flex items-center gap-1">
+                      <span>✓</span>
+                      <span>You qualify for free delivery!</span>
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      <span className="font-medium text-foreground">Free delivery on orders over €{freeDeliveryLimit.toFixed(2)}</span>
+                      <br />
+                      <span className="text-orange-500">Add €{amountNeeded.toFixed(2)} more for free delivery</span>
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Basket Items */}
@@ -271,12 +307,19 @@ export default function MobileBasket({ items, onUpdateQuantity, onRemoveItem, on
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="text-foreground">€ {subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    Delivery fee <Info className="w-3 h-3" />
-                  </span>
-                  <span className="text-foreground">€ {deliveryFee.toFixed(2)}</span>
-                </div>
+                {deliveryMode === "delivery" && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      Delivery fee <Info className="w-3 h-3" />
+                      {deliveryFee === 0 && feesData && subtotal >= parseFloat(feesData.free_delivery_limit) && (
+                        <span className="text-green-500 text-xs">(Free!)</span>
+                      )}
+                    </span>
+                    <span className="text-foreground">
+                      {deliveryFee === 0 ? "Free" : `€ ${deliveryFee.toFixed(2)}`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground flex items-center gap-1">
                     Service fee <Info className="w-3 h-3" />
