@@ -454,7 +454,7 @@ export default function ProductModal({ product, onClose, onAddToBasket }: Produc
             <X className="w-5 h-5 text-foreground" />
           </button>
 
-          {/* Product Image - Only show if image exists and hasn't errored */}
+          {/* Product Image - Only show if image exists and hasn't errore */}
           {(() => {
             const imageUrl = getImageUrl(product.image)
             return imageUrl && !imageError ? (
