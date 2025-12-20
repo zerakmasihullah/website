@@ -8,6 +8,8 @@ interface HeaderProps {
   onMenuClick: () => void
 }
 
+
+
 export default function Header({ onMenuClick }: HeaderProps) {
 
   return (
@@ -17,7 +19,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
       </Script>
       <Script src="https://cdn.gtranslate.net/widgets/latest/globe.js" strategy="lazyOnload" defer />
       
-      
+
 
       <header className="bg-background border-b border-border sticky top-0 z-50 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95 transition-colors duration-300">
         <div className="flex items-center justify-between px-3 md:px-4 py-3 md:py-4">
