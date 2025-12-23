@@ -34,8 +34,8 @@ function getApiBaseUrl(): string {
   return PRODUCTION_API_URL;
 }
 
-// const API_BASE_URL = getApiBaseUrl();
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = getApiBaseUrl();
+// const API_BASE_URL = 'http://127.0.0.1:8000/api';
 const REQUEST_TIMEOUT = 30000; // 30 seconds
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
