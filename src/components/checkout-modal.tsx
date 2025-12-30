@@ -737,7 +737,7 @@ export default function CheckoutModal({
                       : ` (€${(typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0).toFixed(2)})`
                     }
                     {appliedDiscount.minimum_purchase_amount && appliedDiscount.minimum_purchase_amount > 0 && (
-                      <span className="text-xs opacity-75">• Min: €{appliedDiscount.minimum_purchase_amount.toFixed(2)}</span>
+                      <span className="text-xs opacity-75">• Min: €{(typeof appliedDiscount.minimum_purchase_amount === 'number' ? appliedDiscount.minimum_purchase_amount : parseFloat(String(appliedDiscount.minimum_purchase_amount)) || 0).toFixed(2)}</span>
                     )}
                   </span>
                   <span className="text-green-600 dark:text-green-400 font-medium">
@@ -763,7 +763,11 @@ export default function CheckoutModal({
                           : `€${(typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0).toFixed(2)} off`
                         }
                         {' when you spend €'}
-                        {availableDiscount.discount.minimum_purchase_amount?.toFixed(2) || '0.00'}
+                        {availableDiscount.discount.minimum_purchase_amount && availableDiscount.discount.minimum_purchase_amount > 0
+                          ? (typeof availableDiscount.discount.minimum_purchase_amount === 'number' 
+                              ? availableDiscount.discount.minimum_purchase_amount 
+                              : parseFloat(String(availableDiscount.discount.minimum_purchase_amount)) || 0).toFixed(2)
+                          : '0.00'}
                         {availableDiscount.amountNeeded > 0 && (
                           <span className="font-semibold text-blue-700 dark:text-blue-300 ml-1">
                             (Spend €{availableDiscount.amountNeeded.toFixed(2)} more)

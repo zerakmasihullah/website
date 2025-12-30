@@ -363,7 +363,7 @@ export default function MobileBasket({ items, onUpdateQuantity, onRemoveItem, on
                         : ` (€${(typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0).toFixed(2)})`
                       }
                       {appliedDiscount.minimum_purchase_amount && appliedDiscount.minimum_purchase_amount > 0 && (
-                        <span className="text-xs opacity-75">• Min: €{appliedDiscount.minimum_purchase_amount.toFixed(2)}</span>
+                        <span className="text-xs opacity-75">• Min: €{(typeof appliedDiscount.minimum_purchase_amount === 'number' ? appliedDiscount.minimum_purchase_amount : parseFloat(String(appliedDiscount.minimum_purchase_amount)) || 0).toFixed(2)}</span>
                       )}
                     </span>
                     <span className="text-green-600 dark:text-green-400 font-medium">

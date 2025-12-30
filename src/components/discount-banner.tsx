@@ -60,16 +60,31 @@ export default function DiscountBanner() {
     : `€${discountValue.toFixed(2)}`
 
   const getDiscountDescription = () => {
+    const parts: string[] = []
+    
+    // Add day information
     if (currentDiscount.days_of_week && currentDiscount.days_of_week.length > 0) {
       const days = currentDiscount.days_of_week.map(d => d.charAt(0).toUpperCase() + d.slice(1).toLowerCase())
       if (days.length === 7) {
-        return "Every day"
+        parts.push("Every day")
       } else {
-        return days.join(", ")
+        parts.push(days.join(", "))
       }
     } else {
-      return "Every day"
+      parts.push("Every day")
     }
+    
+    // Add minimum purchase requirement if exists
+    if (currentDiscount.minimum_purchase_amount && currentDiscount.minimum_purchase_amount > 0) {
+      const minAmount = typeof currentDiscount.minimum_purchase_amount === 'number' 
+        ? currentDiscount.minimum_purchase_amount 
+        : parseFloat(String(currentDiscount.minimum_purchase_amount)) || 0
+      if (minAmount > 0) {
+        parts.push(`Min. purchase: €${minAmount.toFixed(2)}`)
+      }
+    }
+    
+    return parts.join(" • ")
   }
 
   return (
