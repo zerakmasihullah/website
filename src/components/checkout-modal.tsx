@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Calendar, Clock, CreditCard, DollarSign, MapPin, Phone, FileText, ShoppingBag, Tag, User, ChevronRight, Info } from "lucide-react"
+import { X, Calendar, Clock, CreditCard, DollarSign, MapPin, Phone, FileText, ShoppingBag, Tag, User, ChevronRight, Info, ArrowRight } from "lucide-react"
 import { placeOrder, getCurrentUser, updateProfile, createCheckoutSession, getFees, calculateFees, getSettings, getActiveDiscounts, calculateDiscount, getAvailableDiscounts, type PlaceOrderData, type FeesData, type SettingsData, type DiscountData } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
@@ -729,18 +729,24 @@ export default function CheckoutModal({
                 <span className="text-foreground">€ {propSubtotal.toFixed(2)}</span>
               </div>
               {discountAmount > 0 && appliedDiscount && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                    Discount {appliedDiscount.name && `(${appliedDiscount.name})`}
-                    {appliedDiscount.discount_type === 'percentage' 
-                      ? ` (${typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0}%)`
-                      : ` (€${(typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0).toFixed(2)})`
-                    }
+                <div className="flex justify-between items-start text-sm">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
+                      Discount {appliedDiscount.name && `(${appliedDiscount.name})`}
+                      <span className="text-green-600 dark:text-green-400 font-normal">
+                        {appliedDiscount.discount_type === 'percentage' 
+                          ? `(${typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0}%)`
+                          : `(€${(typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0).toFixed(2)})`
+                        }
+                      </span>
+                    </span>
                     {appliedDiscount.minimum_purchase_amount && appliedDiscount.minimum_purchase_amount > 0 && (
-                      <span className="text-xs opacity-75">• Min: €{(typeof appliedDiscount.minimum_purchase_amount === 'number' ? appliedDiscount.minimum_purchase_amount : parseFloat(String(appliedDiscount.minimum_purchase_amount)) || 0).toFixed(2)}</span>
+                      <span className="text-xs text-green-600/80 dark:text-green-400/80">
+                        Min. purchase: €{(typeof appliedDiscount.minimum_purchase_amount === 'number' ? appliedDiscount.minimum_purchase_amount : parseFloat(String(appliedDiscount.minimum_purchase_amount)) || 0).toFixed(2)}
+                      </span>
                     )}
-                  </span>
-                  <span className="text-green-600 dark:text-green-400 font-medium">
+                  </div>
+                  <span className="text-green-600 dark:text-green-400 font-semibold">
                     -€ {discountAmount.toFixed(2)}
                   </span>
                 </div>
@@ -748,33 +754,73 @@ export default function CheckoutModal({
 
               {/* Show available discounts user doesn't qualify for yet */}
               {availableDiscounts.length > 0 && availableDiscounts.some(ad => !ad.meetsRequirement) && (
-                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-2 space-y-1">
-                  <div className="text-xs font-semibold text-blue-700 dark:text-blue-400">
-                    💡 Available Discounts
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/40 dark:to-blue-900/40 border-2 border-blue-300 dark:border-blue-700 rounded-lg p-3 space-y-2 mb-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🎁</span>
+                      <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                        Unlock Discounts!
+                      </span>
+                    </div>
                   </div>
                   {availableDiscounts
                     .filter(ad => !ad.meetsRequirement)
-                    .map((availableDiscount, idx) => (
-                      <div key={idx} className="text-xs text-blue-600 dark:text-blue-400">
-                        <span className="font-medium">{availableDiscount.discount.name}</span>
-                        {' - '}
-                        {availableDiscount.discount.discount_type === 'percentage' 
-                          ? `${typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0}% off`
-                          : `€${(typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0).toFixed(2)} off`
-                        }
-                        {' when you spend €'}
-                        {availableDiscount.discount.minimum_purchase_amount && availableDiscount.discount.minimum_purchase_amount > 0
-                          ? (typeof availableDiscount.discount.minimum_purchase_amount === 'number' 
-                              ? availableDiscount.discount.minimum_purchase_amount 
-                              : parseFloat(String(availableDiscount.discount.minimum_purchase_amount)) || 0).toFixed(2)
-                          : '0.00'}
-                        {availableDiscount.amountNeeded > 0 && (
-                          <span className="font-semibold text-blue-700 dark:text-blue-300 ml-1">
-                            (Spend €{availableDiscount.amountNeeded.toFixed(2)} more)
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                    .map((availableDiscount, idx) => {
+                      const minAmount = availableDiscount.discount.minimum_purchase_amount && availableDiscount.discount.minimum_purchase_amount > 0
+                        ? (typeof availableDiscount.discount.minimum_purchase_amount === 'number' 
+                            ? availableDiscount.discount.minimum_purchase_amount 
+                            : parseFloat(String(availableDiscount.discount.minimum_purchase_amount)) || 0)
+                        : 0
+                      const discountValue = availableDiscount.discount.discount_type === 'percentage' 
+                        ? `${typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0}%`
+                        : `€${(typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0).toFixed(2)}`
+                      const potentialSavings = availableDiscount.discount.discount_type === 'percentage'
+                        ? (minAmount * (typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0) / 100)
+                        : (typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0)
+                      
+                      return (
+                        <div key={idx} className="bg-white dark:bg-gray-800 rounded-md p-2.5 border border-blue-200 dark:border-blue-700">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                                  {discountValue} OFF
+                                </span>
+                                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                  {availableDiscount.discount.name}
+                                </span>
+                              </div>
+                              <div className="text-xs text-blue-600 dark:text-blue-400 space-y-0.5">
+                                <div>
+                                  Spend €{minAmount.toFixed(2)} to unlock this discount
+                                </div>
+                                {availableDiscount.amountNeeded > 0 && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <span className="font-semibold text-orange-600 dark:text-orange-400">
+                                      Add €{availableDiscount.amountNeeded.toFixed(2)} more
+                                    </span>
+                                    <span className="text-blue-500 dark:text-blue-400">
+                                      to save €{potentialSavings.toFixed(2)}!
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              onClose()
+                              router.push('/')
+                            }}
+                            className="mt-2 w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white text-xs font-semibold py-2 px-3 rounded-md transition-colors"
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            <span>Add More Items</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
                 </div>
               )}
               {deliveryType === "delivery" && (

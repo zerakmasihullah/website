@@ -3,7 +3,7 @@
 import { ShoppingCart, Trash2, Minus, Plus, Bike, ShoppingBag, Info } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { getFees, calculateFees, getActiveDiscounts, calculateDiscount, type FeesData, type DiscountData } from "@/lib/api"
+import { getFees, calculateFees, getActiveDiscounts, calculateDiscount, getAvailableDiscounts, type FeesData, type DiscountData } from "@/lib/api"
 
 interface SelectedOption {
   groupTitle: string
@@ -42,6 +42,7 @@ export default function BasketSidebar({ items, onUpdateQuantity, onRemoveItem, o
   const [discountsData, setDiscountsData] = useState<DiscountData[]>([])
   const [discountAmount, setDiscountAmount] = useState(0)
   const [appliedDiscount, setAppliedDiscount] = useState<DiscountData | null>(null)
+  const [availableDiscounts, setAvailableDiscounts] = useState<{ discount: DiscountData; meetsRequirement: boolean; amountNeeded: number }[]>([])
 
   // Fetch fees and discounts data on mount
   useEffect(() => {
@@ -132,9 +133,14 @@ export default function BasketSidebar({ items, onUpdateQuantity, onRemoveItem, o
       
       setDiscountAmount(discountResult.discountAmount)
       setAppliedDiscount(discountResult.discount)
+
+      // Get all available discounts (including those user doesn't qualify for yet)
+      const available = getAvailableDiscounts(discountsData, subtotal, dayOfWeek)
+      setAvailableDiscounts(available)
     } else {
       setDiscountAmount(0)
       setAppliedDiscount(null)
+      setAvailableDiscounts([])
     }
   }, [subtotal, discountsData])
 
@@ -317,22 +323,61 @@ export default function BasketSidebar({ items, onUpdateQuantity, onRemoveItem, o
               <span className="text-foreground">€ {subtotal.toFixed(2)}</span>
             </div>
             {discountAmount > 0 && appliedDiscount && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                  Discount {appliedDiscount.name && `(${appliedDiscount.name})`}
-                  {appliedDiscount.discount_type === 'percentage' 
-                    ? ` (${typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0}%)`
-                    : ` (€${(typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0).toFixed(2)})`
-                  }
+              <div className="flex justify-between items-start text-sm">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
+                    Discount {appliedDiscount.name && `(${appliedDiscount.name})`}
+                    <span className="text-green-600 dark:text-green-400 font-normal">
+                      {appliedDiscount.discount_type === 'percentage' 
+                        ? `(${typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0}%)`
+                        : `(€${(typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0).toFixed(2)})`
+                      }
+                    </span>
+                  </span>
                   {appliedDiscount.minimum_purchase_amount && appliedDiscount.minimum_purchase_amount > 0 && (
-                    <span className="text-xs opacity-75">• Min: €{(typeof appliedDiscount.minimum_purchase_amount === 'number' ? appliedDiscount.minimum_purchase_amount : parseFloat(String(appliedDiscount.minimum_purchase_amount)) || 0).toFixed(2)}</span>
+                    <span className="text-xs text-green-600/80 dark:text-green-400/80">
+                      Min. purchase: €{(typeof appliedDiscount.minimum_purchase_amount === 'number' ? appliedDiscount.minimum_purchase_amount : parseFloat(String(appliedDiscount.minimum_purchase_amount)) || 0).toFixed(2)}
+                    </span>
                   )}
-                </span>
-                <span className="text-green-600 dark:text-green-400 font-medium">
+                </div>
+                <span className="text-green-600 dark:text-green-400 font-semibold">
                   -€ {discountAmount.toFixed(2)}
                 </span>
               </div>
             )}
+
+            {/* Show available discounts user doesn't qualify for yet */}
+            {availableDiscounts.length > 0 && availableDiscounts.some(ad => !ad.meetsRequirement) && (
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-2 space-y-1.5">
+                <div className="text-xs font-semibold text-blue-700 dark:text-blue-400">
+                  💡 Available Discounts
+                </div>
+                {availableDiscounts
+                  .filter(ad => !ad.meetsRequirement)
+                  .map((availableDiscount, idx) => (
+                    <div key={idx} className="text-xs text-blue-600 dark:text-blue-400">
+                      <span className="font-medium">{availableDiscount.discount.name}</span>
+                      {' - '}
+                      {availableDiscount.discount.discount_type === 'percentage' 
+                        ? `${typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0}% off`
+                        : `€${(typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0).toFixed(2)} off`
+                      }
+                      {' when you spend €'}
+                      {availableDiscount.discount.minimum_purchase_amount && availableDiscount.discount.minimum_purchase_amount > 0
+                        ? (typeof availableDiscount.discount.minimum_purchase_amount === 'number' 
+                            ? availableDiscount.discount.minimum_purchase_amount 
+                            : parseFloat(String(availableDiscount.discount.minimum_purchase_amount)) || 0).toFixed(2)
+                        : '0.00'}
+                      {availableDiscount.amountNeeded > 0 && (
+                        <span className="font-semibold text-blue-700 dark:text-blue-300 ml-1">
+                          (Spend €{availableDiscount.amountNeeded.toFixed(2)} more)
+                        </span>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+
             {deliveryMode === "delivery" && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-muted-foreground flex items-center gap-1">
