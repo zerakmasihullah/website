@@ -324,6 +324,9 @@ export default function BasketSidebar({ items, onUpdateQuantity, onRemoveItem, o
                     ? ` (${typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0}%)`
                     : ` (€${(typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0).toFixed(2)})`
                   }
+                  {appliedDiscount.minimum_purchase_amount && appliedDiscount.minimum_purchase_amount > 0 && (
+                    <span className="text-xs opacity-75">• Min: €{appliedDiscount.minimum_purchase_amount.toFixed(2)}</span>
+                  )}
                 </span>
                 <span className="text-green-600 dark:text-green-400 font-medium">
                   -€ {discountAmount.toFixed(2)}

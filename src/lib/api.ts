@@ -1146,6 +1146,7 @@ export interface DiscountData {
   name: string;
   discount_type: 'percentage' | 'fixed';
   discount_value: number;
+  minimum_purchase_amount: number | null;
   days_of_week: string[] | null;
 }
 
@@ -1183,6 +1184,13 @@ export function calculateDiscount(
       }
     }
 
+    // Check minimum purchase requirement
+    if (discount.minimum_purchase_amount !== null && discount.minimum_purchase_amount > 0) {
+      if (subtotal < discount.minimum_purchase_amount) {
+        continue;
+      }
+    }
+
     // Calculate discount amount
     let discountAmount = 0;
     if (discount.discount_type === 'percentage') {
@@ -1202,6 +1210,45 @@ export function calculateDiscount(
     discount: bestDiscount,
     discountAmount: maxDiscountAmount,
   };
+}
+
+// Get available discounts that user could qualify for (including those they don't meet yet)
+export function getAvailableDiscounts(
+  discounts: DiscountData[],
+  subtotal: number,
+  dayOfWeek: string
+): { discount: DiscountData; meetsRequirement: boolean; amountNeeded: number }[] {
+  const currentDay = dayOfWeek.toLowerCase();
+  const availableDiscounts: { discount: DiscountData; meetsRequirement: boolean; amountNeeded: number }[] = [];
+
+  for (const discount of discounts) {
+    // Check day of week - if no days specified, applies to all days
+    if (discount.days_of_week && discount.days_of_week.length > 0) {
+      const days = discount.days_of_week.map(d => d.toLowerCase());
+      if (!days.includes(currentDay)) {
+        continue;
+      }
+    }
+
+    // Check minimum purchase requirement
+    let meetsRequirement = true;
+    let amountNeeded = 0;
+    
+    if (discount.minimum_purchase_amount !== null && discount.minimum_purchase_amount > 0) {
+      if (subtotal < discount.minimum_purchase_amount) {
+        meetsRequirement = false;
+        amountNeeded = discount.minimum_purchase_amount - subtotal;
+      }
+    }
+
+    availableDiscounts.push({
+      discount,
+      meetsRequirement,
+      amountNeeded,
+    });
+  }
+
+  return availableDiscounts;
 }
 
 // ==================== Drinks/Addons ====================

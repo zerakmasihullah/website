@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { X, Calendar, Clock, CreditCard, DollarSign, MapPin, Phone, FileText, ShoppingBag, Tag, User, ChevronRight, Info } from "lucide-react"
-import { placeOrder, getCurrentUser, updateProfile, createCheckoutSession, getFees, calculateFees, getSettings, getActiveDiscounts, calculateDiscount, type PlaceOrderData, type FeesData, type SettingsData, type DiscountData } from "@/lib/api"
+import { placeOrder, getCurrentUser, updateProfile, createCheckoutSession, getFees, calculateFees, getSettings, getActiveDiscounts, calculateDiscount, getAvailableDiscounts, type PlaceOrderData, type FeesData, type SettingsData, type DiscountData } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 interface BasketItem {
@@ -58,6 +58,7 @@ export default function CheckoutModal({
   const [discountsData, setDiscountsData] = useState<DiscountData[]>([])
   const [discountAmount, setDiscountAmount] = useState(0)
   const [appliedDiscount, setAppliedDiscount] = useState<DiscountData | null>(null)
+  const [availableDiscounts, setAvailableDiscounts] = useState<{ discount: DiscountData; meetsRequirement: boolean; amountNeeded: number }[]>([])
   
   const [selectedDate, setSelectedDate] = useState("")
   const [selectedTime, setSelectedTime] = useState("")
@@ -110,9 +111,14 @@ export default function CheckoutModal({
       
       setDiscountAmount(discountResult.discountAmount)
       setAppliedDiscount(discountResult.discount)
+
+      // Get all available discounts (including those user doesn't qualify for yet)
+      const available = getAvailableDiscounts(discountsData, propSubtotal, dayOfWeek)
+      setAvailableDiscounts(available)
     } else {
       setDiscountAmount(0)
       setAppliedDiscount(null)
+      setAvailableDiscounts([])
     }
   }, [propSubtotal, selectedDate, selectedTime, discountsData])
 
@@ -730,10 +736,41 @@ export default function CheckoutModal({
                       ? ` (${typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0}%)`
                       : ` (€${(typeof appliedDiscount.discount_value === 'number' ? appliedDiscount.discount_value : parseFloat(String(appliedDiscount.discount_value)) || 0).toFixed(2)})`
                     }
+                    {appliedDiscount.minimum_purchase_amount && appliedDiscount.minimum_purchase_amount > 0 && (
+                      <span className="text-xs opacity-75">• Min: €{appliedDiscount.minimum_purchase_amount.toFixed(2)}</span>
+                    )}
                   </span>
                   <span className="text-green-600 dark:text-green-400 font-medium">
                     -€ {discountAmount.toFixed(2)}
                   </span>
+                </div>
+              )}
+
+              {/* Show available discounts user doesn't qualify for yet */}
+              {availableDiscounts.length > 0 && availableDiscounts.some(ad => !ad.meetsRequirement) && (
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-2 space-y-1">
+                  <div className="text-xs font-semibold text-blue-700 dark:text-blue-400">
+                    💡 Available Discounts
+                  </div>
+                  {availableDiscounts
+                    .filter(ad => !ad.meetsRequirement)
+                    .map((availableDiscount, idx) => (
+                      <div key={idx} className="text-xs text-blue-600 dark:text-blue-400">
+                        <span className="font-medium">{availableDiscount.discount.name}</span>
+                        {' - '}
+                        {availableDiscount.discount.discount_type === 'percentage' 
+                          ? `${typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0}% off`
+                          : `€${(typeof availableDiscount.discount.discount_value === 'number' ? availableDiscount.discount.discount_value : parseFloat(String(availableDiscount.discount.discount_value)) || 0).toFixed(2)} off`
+                        }
+                        {' when you spend €'}
+                        {availableDiscount.discount.minimum_purchase_amount?.toFixed(2) || '0.00'}
+                        {availableDiscount.amountNeeded > 0 && (
+                          <span className="font-semibold text-blue-700 dark:text-blue-300 ml-1">
+                            (Spend €{availableDiscount.amountNeeded.toFixed(2)} more)
+                          </span>
+                        )}
+                      </div>
+                    ))}
                 </div>
               )}
               {deliveryType === "delivery" && (
